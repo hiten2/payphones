@@ -19,7 +19,7 @@ global USER_AGENTS
 
 with open("share/user-agents.txt", "rb") as fp:
     reader = csv.reader(fp)
-    USER_AGENTS = [''.join(row) for row in reader]
+    USER_AGENTS = ["".join(row) for row in reader]
 
 def extract_payphones(html):
     """
@@ -37,8 +37,8 @@ def extract_payphones(html):
         payphone["href"] = match[match.find("<a href=\"") + 9
             :match.find("\">\n")]
         payphone["number"] = match[match.find("<b>") + 3
-            :match.find("</font>")].replace('(', '').replace(')',
-                '').replace(' ', '-')
+            :match.find("</font>")].replace('(', "").replace(')',
+                "").replace(' ', '-')
         payphone["address"] = match[match.find("</a> <td>") + 9
             :match.find("</td><td>")]
         yield payphone
