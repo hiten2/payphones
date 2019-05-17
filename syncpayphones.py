@@ -10,14 +10,14 @@ __doc__ = "gross script to extract US payphone data"
 
 global STATE_ABBREVIATIONS
 
-with open("share/usstates.csv", "rb") as fp:
+with open("usstates.csv", "rb") as fp:
     reader = csv.reader(fp)
     reader.next() # skip header
     STATE_ABBREVIATIONS = [row[2] for row in reader]
 
 global USER_AGENTS
 
-with open("share/user-agents.txt", "rb") as fp:
+with open("user-agents.txt", "rb") as fp:
     reader = csv.reader(fp)
     USER_AGENTS = ["".join(row) for row in reader]
 
@@ -27,21 +27,33 @@ def extract_payphones(html):
 
     the HTML follows a rigid format, so a messy solution is simpler
     """
-    pattern = "<tr><td class=\"address_highlight\"><a href=\".*\">\n" \
-        "<font color=\"#ffffcc\"><b>.*</font></b></a>" \
-        " <td>.*</td><td>.*<br></td></tr>"
+    pattern = "<tr><td class=\"address_highlight\">" \
+        "<a href=\".*\">\n" \
+        "<font color=\".*\"><b>.*</b></font></a> </td>" \
+        "<td>.*</td><td>.*<br></td></tr>"
     
     for match in re.findall(pattern, html):
-        payphone = {}
+        start = match.find("<a href=\"") + len("<a href=\"")
+        stop = match.find("\">\n", start)
+        payphone = {"href": match[start:stop]}
         
-        payphone["href"] = match[match.find("<a href=\"") + 9
-            :match.find("\">\n")]
-        payphone["number"] = match[match.find("<b>") + 3
-            :match.find("</font>")].replace('(', "").replace(')',
-                "").replace(' ', '-')
-        payphone["address"] = match[match.find("</a> <td>") + 9
-            :match.find("</td><td>")]
-        yield payphone
+        start = match.find("<b>", stop) + len("<b>")
+        stop = match.find("</b>", start)
+        payphone["number"] = '-'.join(filter(None,
+            match[start:stop]
+                .replace('\'', "").replace('"', "")
+                .replace('(', "").replace(')', "")
+                .replace('-', ' ').split(' ')))
+
+        start = match.find(" </td><td>", stop) + len(" </td><td>")
+        stop = match.find("</td><td>", start)
+        payphone["name"] = match[start:stop].replace('\'', "").replace('"', "")
+
+        start = match.find("</td><td>", stop) + len("</td><td>")
+        stop = match.find("<br>", start)
+        payphone["address"] = match[start:stop].replace('\'', "").replace('"', "")
+
+        yield {k: urllib2.unquote(v) for k, v in payphone.iteritems()}
 
 def extract_towns(html):
     """generate towns from HTML"""
@@ -59,9 +71,9 @@ def sync():
         random.choice(USER_AGENTS)})
     url_root = "http://www.payphone-project.com/numbers/usa/"
     
-    with open("share/uspayphones.csv", "wb") as fp:
+    with open("uspayphones.csv", "wb") as fp:
         writer = csv.writer(fp)
-        writer.writerow(["address", "number", "state_abbreviation", "town"])
+        writer.writerow(["address", "name", "number", "state_abbreviation", "town"])
 
         for abbreviation in STATE_ABBREVIATIONS:
             state_url = os.path.join(url_root, abbreviation)
@@ -80,12 +92,13 @@ def sync():
                             
                             for payphone in extract_payphones(urllib2.urlopen(
                                     town_request).read()):
-                                print "\t\t[*] Found", payphone["number"],
+                                print "\t\t[*] Found", payphone["name"],
+                                print "(%s)" % payphone["number"],
                                 print "at", payphone["address"], "in",
                                 print town.replace('_', ' ')
                                 writer.writerow([payphone["address"],
-                                    payphone["number"], abbreviation,
-                                    town.replace('_', ' ')])
+                                    payphone["name"], payphone["number"],
+                                    abbreviation, town.replace('_', ' ')])
                             break
                         except (urllib2.HTTPError, urllib2.URLError) as e:
                             print >> sys.stderr, "\x1b[31m[!] Failed" \
@@ -93,6 +106,7 @@ def sync():
                             time.sleep(random.random())
                 except KeyboardInterrupt:
                     print "[*] Quitting GET attempts"
+                    return # break out of everything
 
 if __name__ == "__main__":
     sync()
