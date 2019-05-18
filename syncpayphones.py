@@ -99,6 +99,7 @@ def sync():
                                 writer.writerow([payphone["address"],
                                     payphone["name"], payphone["number"],
                                     abbreviation, town.replace('_', ' ')])
+                                os.fdatasync(fp.fileno())
                             break
                         except (urllib2.HTTPError, urllib2.URLError) as e:
                             print >> sys.stderr, "\x1b[31m[!] Failed" \
